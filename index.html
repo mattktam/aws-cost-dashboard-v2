@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AWS Cost Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;padding:24px 16px}
+.wrapper{max-width:1100px;margin:0 auto}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.logo-row{display:flex;align-items:center;gap:12px}
+.logo{width:40px;height:40px;background:linear-gradient(135deg,#ff9900 40%,#ff6b00);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+h1{font-size:1.4rem;font-weight:700;letter-spacing:-.4px}
+.subtitle{font-size:12px;color:#8b949e;margin-top:2px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{padding:7px 14px;border-radius:8px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:12px;cursor:pointer;transition:all .15s}
+.btn:hover,.btn.active{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.btn.sm{padding:5px 10px;font-size:11px}
+.btn.green{border-color:#2ecc71;color:#2ecc71}
+.btn.green:hover{background:#2ecc71;color:#0d1117}
+.btn.orange{border-color:#ff9900;color:#ff9900}
+.btn.orange:hover{background:#ff9900;color:#0d1117}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px}
+.card-label{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.7px}
+.card-value{font-size:1.4rem;font-weight:700;margin-top:6px}
+.card-sub{font-size:11px;color:#8b949e;margin-top:3px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+.panel{background:#161b22;border:1px solid #30363d;border-radius:12px;overflow:hidden;margin-bottom:16px}
+.panel-title{padding:14px 16px;font-size:13px;font-weight:600;color:#c9d1d9;border-bottom:1px solid #30363d;display:flex;justify-content:space-between;align-items:center}
+.chart-wrap{padding:16px;position:relative;height:220px}
+.service-list{overflow-y:auto}
+.svc-row{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;transition:background .12s;border-bottom:1px solid #21262d}
+.svc-row:last-child{border-bottom:none}
+.svc-row:hover{background:#1c2128}
+.svc-row.active{background:#1c2128;border-left:3px solid #1f6feb;padding-left:13px}
+.svc-icon{font-size:14px;width:20px;text-align:center;flex-shrink:0}
+.svc-name{flex:1;font-size:12px;color:#e6edf3;min-width:0}
+.svc-bar-wrap{width:70px;height:5px;background:#21262d;border-radius:3px;flex-shrink:0}
+.svc-bar{height:5px;border-radius:3px;background:#1f6feb}
+.svc-cost{font-size:12px;font-weight:600;color:#e6edf3;min-width:65px;text-align:right;flex-shrink:0}
+.badge{display:inline-block;padding:2px 7px;border-radius:12px;font-size:10px;font-weight:600;flex-shrink:0}
+.badge.new{background:rgba(255,153,0,.15);color:#ff9900;border:1px solid rgba(255,153,0,.3)}
+.detail-panel{background:#161b22;border:1px solid #30363d;border-radius:12px;margin-bottom:16px;overflow:hidden}
+.detail-header{padding:14px 16px;border-bottom:1px solid #30363d;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.tabs{display:flex;border-bottom:1px solid #30363d}
+.tab{padding:10px 16px;font-size:12px;cursor:pointer;color:#8b949e;border-bottom:2px solid transparent;transition:all .15s}
+.tab.active{color:#1f6feb;border-bottom-color:#1f6feb}
+.tab-content{padding:16px;display:none}
+.tab-content.active{display:block}
+.breakdown-table{width:100%;border-collapse:collapse}
+.breakdown-table th{padding:8px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#8b949e;text-align:left;border-bottom:1px solid #21262d;font-weight:600}
+.breakdown-table td{padding:9px 12px;font-size:12px;border-bottom:1px solid #21262d;color:#e6edf3}
+.breakdown-table tr:last-child td{border-bottom:none}
+.bar-cell{display:flex;align-items:center;gap:8px}
+.mini-bar-wrap{width:80px;height:4px;background:#21262d;border-radius:2px}
+.mini-bar{height:4px;border-radius:2px;background:#1f6feb}
+.loading{text-align:center;padding:40px;color:#8b949e;font-size:13px}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid #30363d;border-top-color:#1f6feb;border-radius:50%;animation:spin .8s linear infinite;margin-right:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.chat-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#ff9900,#ff6b00);border:none;cursor:pointer;font-size:24px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:1000;transition:transform .2s}
+.chat-btn:hover{transform:scale(1.1)}
+.chat-window{position:fixed;bottom:92px;right:24px;width:380px;height:500px;background:#161b22;border:1px solid #30363d;border-radius:16px;display:flex;flex-direction:column;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+.chat-header{padding:14px 16px;border-bottom:1px solid #30363d;display:flex;align-items:center;justify-content:space-between}
+.chat-avatar{width:32px;height:32px;background:linear-gradient(135deg,#ff9900,#ff6b00);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px}
+.chat-title{font-size:13px;font-weight:600;color:#e6edf3;margin-left:10px}
+.chat-subtitle{font-size:11px;color:#8b949e;margin-left:10px}
+.chat-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:18px}
+.chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.chat-msg{max-width:85%;padding:10px 12px;border-radius:12px;font-size:12px;line-height:1.5}
+.chat-msg.bot{background:#0d1117;border:1px solid #21262d;color:#e6edf3;align-self:flex-start;border-bottom-left-radius:4px}
+.chat-msg.user{background:#1f6feb;color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.chat-msg.thinking{color:#8b949e;font-style:italic}
+.chat-suggestions{padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid #21262d}
+.chat-suggestion{padding:4px 10px;background:#0d1117;border:1px solid #30363d;border-radius:20px;font-size:11px;color:#8b949e;cursor:pointer;transition:all .15s}
+.chat-suggestion:hover{border-color:#1f6feb;color:#1f6feb}
+.chat-input-row{padding:12px;border-top:1px solid #30363d;display:flex;gap:8px}
+.chat-input{flex:1;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:8px 12px;color:#e6edf3;font-size:12px;outline:none;font-family:inherit}
+.chat-input:focus{border-color:#1f6feb}
+.chat-send{padding:8px 14px;background:#1f6feb;border:none;border-radius:8px;color:#fff;font-size:12px;cursor:pointer}
+.chat-send:disabled{background:#30363d;cursor:not-allowed}
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 20px;font-size:13px;color:#e6edf3;z-index:2000;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+@media(max-width:420px){.chat-window{width:calc(100vw - 48px)}}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="logo-row">
+      <div class="logo">&#9729;</div>
+      <div>
+        <h1>AWS Cost Dashboard</h1>
+        <div class="subtitle" id="date-subtitle">Loading...</div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn active" onclick="setRange(7,this)">7 days</button>
+      <button class="btn" onclick="setRange(14,this)">14 days</button>
+      <button class="btn" onclick="setRange(30,this)">30 days</button>
+      <button class="btn green" onclick="refreshData()">&#8635; Refresh</button>
+      <button class="btn orange" id="emailBtn" onclick="sendEmailReport(this)">&#9993; Email Report</button>
+    </div>
+  </div>
+  <div class="cards" id="summary-cards"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-title">Daily spend trend</div>
+      <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Cost by service (top 6)</div>
+      <div class="chart-wrap"><canvas id="donutChart"></canvas></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">
+      <span>Top 20 services &mdash; click any row to drill down</span>
+      <span style="font-size:11px;color:#8b949e">sorted by cost</span>
+    </div>
+    <div class="service-list" id="service-list"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+  </div>
+  <div class="detail-panel" id="detail-panel" style="display:none">
+    <div class="detail-header">
+      <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#c9d1d9">
+        <span id="detail-icon"></span><span id="detail-name"></span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn sm active" onclick="setDetailRange(7,this)">7d</button>
+        <button class="btn sm" onclick="setDetailRange(14,this)">14d</button>
+        <button class="btn sm" onclick="setDetailRange(30,this)">30d</button>
+        <button class="btn sm" style="border-color:#e74c3c;color:#e74c3c" onclick="closeDetail()">&#10005; Close</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('usage',this)">Usage type</div>
+      <div class="tab" onclick="switchTab('region',this)">By region</div>
+      <div class="tab" onclick="switchTab('instance',this)">Instance type</div>
+    </div>
+    <div id="tab-usage" class="tab-content active">
+      <div style="height:160px;margin-bottom:16px"><canvas id="detailChartUsage"></canvas></div>
+      <table class="breakdown-table"><thead><tr><th>Usage type</th><th>Cost</th><th>% of service</th></tr></thead><tbody id="usage-tbody"></tbody></table>
+    </div>
+    <div id="tab-region" class="tab-content">
+      <div style="height:200px;margin-bottom:16px"><canvas id="detailChartRegion"></canvas></div>
+      <table class="breakdown-table"><thead><tr><th>Region</th><th>Cost</th><th>% of service</th></tr></thead><tbody id="region-tbody"></tbody></table>
+    </div>
+    <div id="tab-instance" class="tab-content">
+      <div style="height:200px;margin-bottom:16px"><canvas id="detailChartInstance"></canvas></div>
+      <table class="breakdown-table"><thead><tr><th>Instance / resource</th><th>Cost</th><th>% of service</th></tr></thead><tbody id="instance-tbody"></tbody></table>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<button class="chat-btn" onclick="toggleChat()" id="chatBtn">&#128172;</button>
+<div class="chat-window" id="chatWindow" style="display:none">
+  <div class="chat-header">
+    <div style="display:flex;align-items:center">
+      <div class="chat-avatar">&#9729;</div>
+      <div><div class="chat-title">AWS Cost Assistant</div><div class="chat-subtitle">Powered by Claude</div></div>
+    </div>
+    <button class="chat-close" onclick="toggleChat()">&#10005;</button>
+  </div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-msg bot">Hi! Ask me anything about your AWS costs.</div>
+  </div>
+  <div class="chat-suggestions">
+    <span class="chat-suggestion" onclick="askSuggestion(this)">How much did EC2 cost yesterday?</span>
+    <span class="chat-suggestion" onclick="askSuggestion(this)">Total spend last 7 days?</span>
+    <span class="chat-suggestion" onclick="askSuggestion(this)">S3 costs this month?</span>
+    <span class="chat-suggestion" onclick="askSuggestion(this)">Which service costs the most?</span>
+  </div>
+  <div class="chat-input-row">
+    <input class="chat-input" id="chatInput" placeholder="Ask about your AWS costs..." onkeydown="if(event.key==='Enter')sendChat()">
+    <button class="chat-send" id="chatSend" onclick="sendChat()">Send</button>
+  </div>
+</div>
+<script>
+const API='https://9rq6s1b7od.execute-api.us-east-1.amazonaws.com/prod';
+const COLORS=['#1f6feb','#2ecc71','#e74c3c','#f39c12','#9b59b6','#1abc9c','#e67e22','#3498db'];
+function getIcon(n){const m={'EC2':'&#128187;','S3':'&#129524;','RDS':'&#128452;','VPC':'&#127760;','CloudWatch':'&#128225;','Lambda':'&#955;','ECS':'&#128051;','EKS':'&#9784;','Redshift':'&#128230;','OpenSearch':'&#128269;','Route 53':'&#128279;','CloudTrail':'&#128203;','Config':'&#128295;','Bedrock':'&#129302;','Load Balanc':'&#9878;','EMR':'&#9889;','Savings':'&#128176;'};for(const[k,v]of Object.entries(m))if(n.includes(k))return v;return'&#9729;';}
+function fmt(n){return'$'+Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+let days=7,detailDays=7,selectedSvc=null,activeTab='usage';
+let trendChart,donutChart;
+let cachedSummary=null;
+async function apiFetch(params){const qs=new URLSearchParams(params).toString();const res=await fetch(API+'/costs?'+qs);return res.json();}
+async function render(){
+  document.getElementById('summary-cards').innerHTML='<div class="loading"><span class="spinner"></span>Loading...</div>';
+  document.getElementById('service-list').innerHTML='<div class="loading"><span class="spinner"></span>Loading...</div>';
+  document.getElementById('date-subtitle').textContent='Fetching data...';
+  try{
+    const[summary,trend]=await Promise.all([apiFetch({action:'summary',days}),apiFetch({action:'trend',days})]);
+    cachedSummary=summary;
+    renderSummary(summary,trend);
+  }catch(e){document.getElementById('summary-cards').innerHTML='<div style="padding:20px;color:#e74c3c">Error: '+e.message+'</div>';}
+}
+function renderSummary(summary,trend){
+  const svcs=summary.services||[];
+  const totals=(trend.trend||[]).map(d=>d.total);
+  const labels=(trend.trend||[]).map(d=>new Date(d.date).toLocaleDateString('en-CA',{month:'short',day:'numeric'}));
+  const total=svcs.reduce((s,r)=>s+r.cost,0);
+  document.getElementById('date-subtitle').textContent='Last updated '+new Date().toLocaleDateString('en-CA',{year:'numeric',month:'long',day:'numeric'})+' \u00b7 '+days+'-day view';
+  document.getElementById('summary-cards').innerHTML=
+    '<div class="card"><div class="card-label">Period total</div><div class="card-value">'+fmt(total)+'</div><div class="card-sub">'+days+'-day spend</div></div>'+
+    '<div class="card"><div class="card-label">Services active</div><div class="card-value">'+svcs.length+'</div><div class="card-sub">with spend > -bash</div></div>'+
+    '<div class="card"><div class="card-label">Top service</div><div class="card-value" style="font-size:1rem">'+(svcs[0]?.name.split(' ').slice(-2).join(' ')||'N/A')+'</div><div class="card-sub">'+fmt(svcs[0]?.cost||0)+'</div></div>'+
+    '<div class="card"><div class="card-label">Daily average</div><div class="card-value">'+fmt(total/days)+'</div><div class="card-sub">per day</div></div>';
+  if(trendChart)trendChart.destroy();
+  trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels,datasets:[{data:totals,borderColor:'#1f6feb',backgroundColor:'rgba(31,111,235,0.08)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#1f6feb'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}},y:{ticks:{color:'#8b949e',font:{size:10},callback:v=>'$'+v.toFixed(0)},grid:{color:'#21262d'}}}}});
+  if(donutChart)donutChart.destroy();
+  const top6=svcs.slice(0,6),others=svcs.slice(6).reduce((s,r)=>s+r.cost,0);
+  donutChart=new Chart(document.getElementById('donutChart'),{type:'doughnut',data:{labels:[...top6.map(s=>s.name.split(' ').pop()),'Others'],datasets:[{data:[...top6.map(s=>s.cost),others],backgroundColor:[...COLORS.slice(0,6),'#30363d'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'right',labels:{color:'#8b949e',font:{size:10},boxWidth:10}}}}});
+  const maxCost=svcs[0]?.cost||1;
+  document.getElementById('service-list').innerHTML=svcs.map(s=>
+    '<div class="svc-row'+(selectedSvc===s.name?' active':'')+'" onclick="showDetail(\''+s.name.replace(/'/g,"\'")+'\')">'+
+    '<span class="svc-icon">'+getIcon(s.name)+'</span>'+
+    '<span class="svc-name">'+s.name+'</span>'+
+    '<div class="svc-bar-wrap"><div class="svc-bar" style="width:'+(s.cost/maxCost*100).toFixed(0)+'%"></div></div>'+
+    '<span class="svc-cost">'+fmt(s.cost)+'</span>'+
+    '<span class="badge new">'+days+'d</span></div>').join('');
+}
+async function showDetail(svcName,scroll=true){
+  selectedSvc=svcName;
+  document.getElementById('detail-panel').style.display='block';
+  document.getElementById('detail-icon').innerHTML=getIcon(svcName);
+  document.getElementById('detail-name').textContent=svcName;
+  document.querySelectorAll('.svc-row').forEach(r=>r.classList.toggle('active',r.querySelector('.svc-name')?.textContent===svcName));
+  if(scroll)document.getElementById('detail-panel').scrollIntoView({behavior:'smooth',block:'start'});
+  loadTab(activeTab,svcName);
+}
+async function loadTab(tab,svcName){
+  const tbodyId=tab==='usage'?'usage-tbody':tab==='region'?'region-tbody':'instance-tbody';
+  document.getElementById(tbodyId).innerHTML='<tr><td colspan="3" class="loading"><span class="spinner"></span>Loading...</td></tr>';
+  try{
+    const data=await apiFetch({action:tab,service:svcName,days:detailDays});
+    const items=data.breakdown||[];
+    const total=items.reduce((s,r)=>s+r.cost,0)||1;
+    const max=items[0]?.cost||1;
+    const chartId=tab==='usage'?'detailChartUsage':tab==='region'?'detailChartRegion':'detailChartInstance';
+    if(window['chart_'+tab])window['chart_'+tab].destroy();
+    window['chart_'+tab]=new Chart(document.getElementById(chartId),{type:'bar',data:{labels:items.slice(0,8).map(i=>i.name.length>20?i.name.slice(0,20)+'...':i.name),datasets:[{data:items.slice(0,8).map(i=>i.cost),backgroundColor:tab==='region'?COLORS.slice(0,items.length):tab==='instance'?'rgba(46,204,113,0.6)':'rgba(31,111,235,0.6)',borderColor:tab==='instance'?'#2ecc71':'#1f6feb',borderWidth:1,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:9}},grid:{color:'#21262d'}},y:{ticks:{color:'#8b949e',font:{size:10},callback:v=>'$'+v.toFixed(2)},grid:{color:'#21262d'}}}}});
+    document.getElementById(tbodyId).innerHTML=items.map(u=>'<tr><td>'+u.name+'</td><td>'+fmt(u.cost)+'</td><td><div class="bar-cell"><div class="mini-bar-wrap"><div class="mini-bar" style="width:'+(u.cost/max*100).toFixed(0)+'%"></div></div>'+(u.cost/total*100).toFixed(1)+'%</div></td></tr>').join('')||'<tr><td colspan="3" style="padding:12px;color:#8b949e;text-align:center">No data</td></tr>';
+  }catch(e){document.getElementById(tbodyId).innerHTML='<tr><td colspan="3" style="color:#e74c3c;padding:12px">Error: '+e.message+'</td></tr>';}
+}
+function switchTab(tab,el){activeTab=tab;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.getElementById('tab-'+tab).classList.add('active');if(selectedSvc)loadTab(tab,selectedSvc);}
+function setRange(d,btn){days=d;document.querySelectorAll('.controls .btn:not(.green):not(.orange)').forEach(b=>b.classList.remove('active'));btn.classList.add('active');render();}
+function setDetailRange(d,btn){detailDays=d;document.querySelectorAll('.detail-header .btn.sm:not([style])').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(selectedSvc)loadTab(activeTab,selectedSvc);}
+function closeDetail(){document.getElementById('detail-panel').style.display='none';selectedSvc=null;document.querySelectorAll('.svc-row').forEach(r=>r.classList.remove('active'));}
+function refreshData(){render();}
+async function sendEmailReport(btn){
+  const orig=btn.innerHTML;btn.innerHTML='Sending...';btn.disabled=true;
+  try{
+    const res=await fetch(API+'/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'mattktam@gmail.com',days})});
+    const data=await res.json();
+    showToast(data.message||'Report sent!','#2ecc71');
+  }catch(e){showToast('Failed to send report','#e74c3c');}
+  btn.innerHTML=orig;btn.disabled=false;
+}
+function showToast(msg,color){const t=document.getElementById('toast');t.textContent=msg;t.style.borderColor=color||'#30363d';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+let chatOpen=false;
+function toggleChat(){chatOpen=!chatOpen;document.getElementById('chatWindow').style.display=chatOpen?'flex':'none';document.getElementById('chatBtn').innerHTML=chatOpen?'&#10005;':'&#128172;';if(chatOpen)document.getElementById('chatInput').focus();}
+function askSuggestion(el){document.getElementById('chatInput').value=el.textContent;sendChat();}
+async function sendChat(){
+  const input=document.getElementById('chatInput');
+  const send=document.getElementById('chatSend');
+  const question=input.value.trim();
+  if(!question)return;
+  addMsg(question,'user');input.value='';send.disabled=true;
+  const thinking=addMsg('Thinking...','bot thinking');
+  try{
+    const res=await fetch(API+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});
+    const data=await res.json();
+    thinking.remove();
+    addMsg(data.answer||data.error||'Sorry, something went wrong.','bot');
+  }catch(e){thinking.remove();addMsg('Could not connect. Please try again.','bot');}
+  send.disabled=false;input.focus();
+}
+function addMsg(text,type){const msgs=document.getElementById('chatMessages');const div=document.createElement('div');div.className='chat-msg '+type;div.textContent=text;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;}
+render();
+</script>
+</body>
+</html>

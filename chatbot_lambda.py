@@ -21,7 +21,7 @@ def lambda_handler(event, context):
         return {"statusCode": 400, "headers": headers, "body": json.dumps({"error": "No question provided"})}
     try:
         cost_data = fetch_cost_data(question)
-        answer = ask_nova(question, cost_data)
+        answer = ask_claude(question, cost_data)
         return {"statusCode": 200, "headers": headers, "body": json.dumps({"answer": answer})}
     except Exception as e:
         return {"statusCode": 500, "headers": headers, "body": json.dumps({"error": str(e)})}
@@ -102,13 +102,14 @@ def fetch_cost_data(question):
             results[date] = {"total": round(total, 4), "breakdown": items}
     return {"date_range": {"start": start_date, "end": end_date}, "daily_costs": results}
 
-def ask_nova(question, cost_data):
-    prompt = "You are an AWS cost analysis assistant. Answer questions about AWS costs using only the data provided. Be concise, use dollar amounts, keep to 2-4 sentences.\n\nQuestion: " + question + "\n\nData:\n" + json.dumps(cost_data, indent=2) + "\n\nAnswer using only this data."
+def ask_claude(question, cost_data):
     response = bedrock_client.invoke_model(
-        modelId="amazon.nova-micro-v1:0",
+        modelId="anthropic.claude-sonnet-4-5",
         body=json.dumps({
-            "messages": [{"role": "user", "content": [{"text": prompt}]}]
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 500,
+            "system": "You are an AWS cost analysis assistant. Answer questions about AWS costs using only the data provided. Be concise, use dollar amounts, keep to 2-4 sentences.",
+            "messages": [{"role": "user", "content": "Question: " + question + "\n\nData:\n" + json.dumps(cost_data, indent=2) + "\n\nAnswer using only this data."}]
         })
     )
-    result = json.loads(response["body"].read())
-    return result["output"]["message"]["content"][0]["text"]
+    return json.loads(response["body"].read())["content"][0]["text"]

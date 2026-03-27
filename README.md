@@ -2,6 +2,9 @@
 
 Interactive AWS cost dashboard with AI-powered chatbot and on-demand email reports — built entirely with AWS CLI.
 
+## Screenshot
+![AWS Cost Dashboard](screenshot.png)
+
 ## Live demo
 https://d3swdga24vd6e7.cloudfront.net
 
